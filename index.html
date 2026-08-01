@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="A simple personal website boilerplate."
+    />
+    <title>Paperclip's site</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400..700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+    <script src="stickys.js" defer></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <nav class="top-bar" aria-label="Main navigation">
+        <div class="nav-links">
+          <a href="#home">Home</a>
+          <a href="blog.html">Blog</a>
+          <a href="projects.html">Projects</a>
+        </div>
+      </nav>
+    </header>
+
+    <main id="home" class="text-container" aria-labelledby="page-title">
+      <section>
+        <div class="home-intro">
+          <div>
+            <h1 id="page-title">Hi, I'm paperclip</h1>
+
+            <nav class="social-links" aria-label="Social links">
+              <a href="https://github.com/itsBuggingMe" target="_blank" rel="noreferrer" aria-label="GitHub" title="GitHub">
+                <img class="social-icon" src="https://cdn.simpleicons.org/github/8486a2" alt="" width="24" height="24" />
+              </a>
+              <a href="mailto:lohj002@gmail.com" aria-label="Gmail" title="lohj002@gmail.com">
+                <img class="social-icon" src="https://cdn.simpleicons.org/gmail/8486a2" alt="" width="24" height="24" />
+              </a>
+              <a href="https://paperclip36.itch.io/" target="_blank" rel="noreferrer" aria-label="itch.io" title="itch.io">
+                <img class="social-icon" src="https://cdn.simpleicons.org/itchdotio/8486a2" alt="" width="24" height="24" />
+              </a>
+              <a href="https://discord.com/users/668456746037018624" target="_blank" rel="noreferrer" aria-label="Discord" title="Discord">
+                <img class="social-icon" src="https://cdn.simpleicons.org/discord/8486a2" alt="" width="24" height="24" />
+              </a>
+            </nav>
+
+            <p class="intro">
+              Student, C# fanatic, and passionate about all things programming. I
+              like making games and high performance tools. Check out my projects
+              and blogs, or post a sticky!
+            </p>
+          </div>
+
+          <figure class="misty">
+            <img src="content/projects/misty.jpg" alt="meow meow" />
+            <figcaption>This is Misty.</figcaption>
+          </figure>
+        </div>
+
+        <section class="sticky-notes" aria-labelledby="sticky-title">
+          <div class="sticky-notes-heading">
+            <h2 id="sticky-title">Stickys</h2>
+            <p>Leave a mark!</p>
+          </div>
+
+          <div id="sticky-list" class="sticky-list" aria-live="polite">
+            <form id="sticky-form" class="sticky-form">
+              <label class="sr-only" for="sticky-content">Write a sticky note</label>
+              <div class="sticky-input">
+                <textarea id="sticky-content" name="content" maxlength="64" rows="2" placeholder="Write something nice..."></textarea>
+                <span id="sticky-count" class="sticky-count">0 / 64</span>
+                <button type="submit" aria-label="Pin note" title="Pin note">⏎</button>
+              </div>
+            </form>
+            <p class="sticky-state">Loading stickys...</p>
+          </div>
+          <p id="sticky-status" class="sticky-status" aria-live="polite"></p>
+        </section>
+      </section>
+    </main>
+  </body>
+</html>

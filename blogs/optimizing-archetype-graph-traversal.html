@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Optimizing Archetype Graph Traversal — Paperclip's blog." />
+    <title>Optimizing Archetype Graph Traversal</title>
+    <link rel="stylesheet" href="../styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <nav class="top-bar" aria-label="Main navigation">
+        <div class="nav-links">
+          <a href="../index.html">Home</a>
+          <a href="../blog.html" aria-current="page">Blog</a>
+          <a href="../projects.html">Projects</a>
+        </div>
+      </nav>
+    </header>
+
+    <main class="text-container blog-container" aria-labelledby="article-title">
+      <section>
+        <a class="back-link" href="../blog.html">← Back</a>
+        <h1 id="article-title">Optimizing Archetype Graph Traversal</h1>
+        <p class="post-date">04/20/2025</p>
+        <div class="markdown-body">
+<br/><br/>
+<p><em>Note: This article assumes an understanding of what an <a href="https://github.com/SanderMertens/ecs-faq">ECS</a> is.</em></p>
+<br/><br/>
+<h2>Background</h2>
+<br/>
+<p>&nbsp;&nbsp;&nbsp;&nbsp;There are two main ways to implement an ECS, using a sparse set or through archetypes. Each method has its own pros and cons and areas of complexity. In this article, I will be focusing on a pain point of archetypical ECS, namely adding and removing components from entities.</p>
+<br/><br/>
+<p>&nbsp;&nbsp;&nbsp;&nbsp;In a sparse set ECS, adding and removing components generally only requires setting an item in a sparse set. However, in an archetypical ECS, the framework needs to:</p>
+<br/><br/>
+<ol><li>Copy components into destination archetype.</li><li>Copy components within the origin archetype from the top to the slot where the previous entity was.</li></ol>
+<br/>
+<p><em>In the diagram, the entity with red components has its <code>Velocity</code> component removed.</em></p>
+<div style="display:flex; flex-direction: horizontal;">
+    <img src="../content/archetype_move_before.png" style="width: 40%; height: 40%; object-fit: cover; margin-left: 5%; margin-right: 5%;">
+    <img src="../content/archetype_move_after.png" style="width: 40%; height: 40%; object-fit: cover; margin-left: 5%;">
+</div>
+<br/><br/>
+<h2>Problem</h2>
+<p>&nbsp;&nbsp;&nbsp;&nbsp;In addition to this expensive O(n) operation (where n is the component count), the framework also needs to find this destination archetype. Older ECS frameworks used to naively hash the set of component types. Nowadays, that is only done as fallback to lazily build an archetype graph, where archetypes are nodes and edges are component types. The archetype graph edges are stored in a hashmap for fast access, and each archetype has its own hashmap representing the edges going outwards (For more information, visit Sander Merten&#39;s excellent <a href="https://ajmmertens.medium.com/building-an-ecs-2-archetypes-and-vectorization-fe21690805f9">articles</a> on archetypical ECS).</p>
+<p>&nbsp;&nbsp;&nbsp;&nbsp;In my ECS, a single hashmap of <code>(ArchetypeID Origin, ComponentType Delta)</code> -&gt; <code>(ArchetypeID Destination)</code> is stored in the world to save ~80 bytes of memory overhead per archetype, which works identically. In addition, there are <code>Add&lt;T&gt;</code>, <code>Add&lt;T1, T2&gt;</code>, etc. component overloads up to <code>T8</code>.</p>
+<p>&nbsp;&nbsp;&nbsp;&nbsp;The problem comes with hashmap lookup speeds. For me, this hashmap lookup consumed a surprisingly large amount of time. When adding 5 components for example, 5 hashmap lookups would need to be done one after another to find the destination archetype. This also forces all intermediate archetypes to be registered. For example, adding <em>[Position, Velocity]</em> to an entity with <em>[]</em> forces the archetype <em>[Position]</em> to exist as archetypes <em>[] -&gt; [Position] -&gt; [Position, Velocity]</em> are traversed. In the worst case, these lookups become a majority of the time spent when adding and removing components. I have also seen cases where it&#39;s literally cheaper to use the naive method of directly hashing an array of component types.</p>
+<br/><br/>
+<h2>Static Caches</h2>
+<p>&nbsp;&nbsp;&nbsp;&nbsp;In C#, generics and static classes can be used to create per-method static buffers. A <code>void M&lt;T&gt;</code> can have a corresponding <code>class C&lt;T&gt;</code> with whatever static fields needed. In C++ static buffers can be directly declared in a method. The key is to use this static buffer to cache a small amount of archetype edge data <em>per generic method</em>.</p>
+<p>&nbsp;&nbsp;&nbsp;&nbsp;Instead of looking up an edge using a component type, these caches store <code>ArchetypeID Origin</code> -&gt; <code>ArchetypeID Destination</code> pairs. The component &#39;delta&#39; or what components to be added/removed is implicitly encoded in the method call itself - <code>Add</code>/<code>Remove&lt;T1, T2, T3...&gt;</code>. The best part is that if a user doesn&#39;t use <code>Add</code>/<code>Remove</code> functions at all, these static caches never need to be allocated. To lookup data in these caches is a simple index of operation over a small fixed-size buffer, which can be easily optimized through unrolling and vectorization.</p>
+<br/><br/>
+<h5>Example</h5>
+<p>&nbsp;&nbsp;&nbsp;&nbsp;Let&#39;s say the empty archetype [] has archetype ID: 42, and the archetype [Position, Velocity] has archetype ID 108. Next, we call <code>Add&lt;Position, Velocity&gt;</code> on an entity with no components and belongs to the empty archetype []. The first time this method is called the static cache is empty and we fallback to hashing. We construct a <code>[typeof(Position), typeof(Velocity)]</code> array and use it to lookup the archetype ID 108. We place this into the method static cache (Origin: 42, Destination: 108) and continue with transferring components.</p>
+<p>&nbsp;&nbsp;&nbsp;&nbsp;Later on, let&#39;s say another entity with no components has <code>Add&lt;Position, Velocity&gt;</code> called on it. We know the origin archetype ID is 42, and we look for that in the cache, find it, and skip the entire process of hashmap lookups and hashing a new component array.</p>
+<p>&nbsp;&nbsp;&nbsp;&nbsp;The downside is that this method also requires archetype ids to be persistent (archetypes themselves can be deleted).</p>
+<br/><br/>
+<h2>Back to the Archetype Graph</h2>
+<p>&nbsp;&nbsp;&nbsp;&nbsp;In a way, the archetype graph still exists, albeit with different kinds of edges. Not only can edges be a single component type, &quot;Add Position&quot; &quot;Remove Velocity&quot; but also multiple component types: &quot;Add Position Velocity&quot; and &quot;Remove Position Velocity&quot;. The graph is also directed, as caches are only accessible from the method they belong to.</p>
+<br/><br/>
+<p><em>The <code>Add(A, B, C)</code> edge skips over all the expensive archetype graph traversals.</em></p>
+<br/><br/>
+<img src="../content/archetype_new_graph_skip.png" style="width: 100%; object-fit: cover;">
+<br/><br/>
+        </div>
+        <div class="comments-section" aria-label="Comments">
+          <script
+            src="https://giscus.app/client.js"
+            data-repo="itsBuggingMe/blog-comments"
+            data-repo-id="R_kgDOObXRmQ"
+            data-category="Announcements"
+            data-category-id="DIC_kwDOObXRmc4CpNIW"
+            data-mapping="title"
+            data-strict="0"
+            data-reactions-enabled="1"
+            data-emit-metadata="0"
+            data-input-position="bottom"
+            data-theme="preferred_color_scheme"
+            data-lang="en"
+            crossorigin="anonymous"
+            async>
+          </script>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

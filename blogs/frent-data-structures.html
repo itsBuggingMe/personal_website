@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Fremplementation &mdash; Paperclip's blog." />
+    <title>Fremplementation</title>
+    <link rel="stylesheet" href="../styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <nav class="top-bar" aria-label="Main navigation">
+        <div class="nav-links">
+          <a href="../index.html">Home</a>
+          <a href="../blog.html" aria-current="page">Blog</a>
+          <a href="../projects.html">Projects</a>
+        </div>
+      </nav>
+    </header>
+
+    <main class="text-container blog-container" aria-labelledby="article-title">
+      <section>
+        <a class="back-link" href="../blog.html">&larr; Back</a>
+        <h1 id="article-title">Fremplementation</h1>
+        <p class="post-date">08/01/2026</p>
+        <div class="markdown-body">
+          <p>This document outlines the implementation details of <a href="https://github.com/itsBuggingMe/Frent">Frent</a>, especially what specific data structures are used and how.</p>
+          <p>I am assuming you already know what an <a href="https://github.com/SanderMertens/ecs-faq?tab=readme-ov-file#what-is-ecs">ECS</a> and <a href="https://github.com/SanderMertens/ecs-faq?tab=readme-ov-file#how-is-ecs-different-from-entity-component-frameworks">EC framework</a> is.</p>
+          <p>Frent internally is primarily a traditional archetypical ECS that uses source generation and data-oriented design to make a fast and low-to-no allocation EC framework.</p>
+          <p>Instance methods on components can be thought of as syntactic sugar for a system calling the instance method. There are semantic differences, however. For example, missing components throw an exception (You can use the <code>[IncludesComponents]</code> attribute to get around this).</p>
+          <pre class="syntax-highlight"><code class="language-cs"><span class="syntax-keyword">struct</span> <span class="syntax-struct">Position</span>(<span class="syntax-struct">Vector2</span> <span class="syntax-local">XY</span>);
+<span class="syntax-keyword">struct</span> <span class="syntax-struct">Velocity</span>(<span class="syntax-struct">Vector2</span> <span class="syntax-local">DXY</span>) : <span class="syntax-type">IUpdate</span>&lt;<span class="syntax-struct">Position</span>&gt;
+{
+    <span class="syntax-keyword">public void</span> <span class="syntax-method">Update</span>(<span class="syntax-keyword">ref</span> <span class="syntax-struct">Position</span> <span class="syntax-local">pos</span>) =&gt; <span class="syntax-local">pos</span>.XY += <span class="syntax-local">DXY</span>;
+}
+
+<span class="syntax-type">World</span> <span class="syntax-local">world</span> = <span class="syntax-keyword">new</span>();
+
+<span class="syntax-comment">// world.Update() performs</span>
+<span class="syntax-local">world</span>.<span class="syntax-method">Query</span>&lt;<span class="syntax-struct">Position</span>, <span class="syntax-struct">Velocity</span>&gt;()
+    .<span class="syntax-method">Delegate</span>((<span class="syntax-keyword">ref</span> <span class="syntax-struct">Position</span> <span class="syntax-local">pos</span>, <span class="syntax-keyword">ref</span> <span class="syntax-struct">Velocity</span> <span class="syntax-local">vel</span>) =&gt; <span class="syntax-local">vel</span>.<span class="syntax-method">Update</span>(<span class="syntax-keyword">ref</span> <span class="syntax-local">pos</span>));</code></pre>
+
+          <h2>The traditional archetypical ECS part</h2>
+          <p>Information in this section is primarily from <a href="https://ajmmertens.medium.com/building-an-ecs-1-where-are-my-entities-and-components-63d07c7da742">here</a>, and will be similar to the implementation details of any other archetypical ecs.</p>
+
+          <h3>Archetypes</h3>
+          <p>An archetype is a data structure that stores component data in a cache-efficient manner. A single archetype stores all component data for entities that have a particular set of component types. For example, an entity with components [Position, Velocity, Sprite] will be in a different archetype compared to an entity with components [Position, Velocity]. An archetype can have zero to any N number of entities in it.</p>
+          <p>You can think of an archetype as a table, where components are stored in columns of contiguous memory, and every row is an entity.</p>
+          <p><img src="https://raw.githubusercontent.com/itsBuggingMe/itsBuggingMe/refs/heads/main/img/archetype_0.png" alt="5 entities, 3 of which have have 4 components, 2 of which have 3" /></p>
+          <p><em>Two archetypes &amp; five entities total. Trees and Shrubs don't move, so they don't need to have a velocity component.</em></p>
+
+          <h3>Adding/removing components</h3>
+          <p>When adding or removing components, component data is moved across archetypes. For example, if we were to add a velocity component to entity 2, it would be copied to the end of the [position, velocity, sprite] archetype.</p>
+
+          <h3>The entity table/meta table</h3>
+          <p>The entity table is a large array of metadata that lets the user retrieve component data given an entity id.</p>
+          <p>Each table entry contains a reference to the archetype the entity is in, the row index of the entity in that archetype, some flags for optimization, and a version/generation so the entity ids can be recycled safely.</p>
+          <p>Here's what the entity table would look like for the scenario above.</p>
+          <p><img src="https://raw.githubusercontent.com/itsBuggingMe/itsBuggingMe/refs/heads/main/img/entity_table_0.png" alt="The entity table" /></p>
+          <p>Let's say we have entity id 4 and want to get its position. We get the [position, velocity, sprite] archetype from the entity table at index 4. We then look for the velocity component at row index 2, which was also given by the entity table entry.</p>
+          <p>But how do we get the column index? Each component type is assigned a sequential type id. Every archetype also carries a byte array that maps from a type id to the column index of that type in the archetype. I call this the component map.</p>
+          <p>The actual field in an archetype is an <code>Array[]</code>, which is the closest we can get to a type-erased <code>void**</code>.</p>
+
+          <h3>Recycling entities</h3>
+          <p>It is imperative that the entity table is a speedy lookup for entity metadata. Thus, an array is perfect for this task. However, as entities are created and deleted, naively creating a unique sequential id for every entity would leak memory as entity ids get ever higher and higher.</p>
+          <p>To keep id values small, we recycle entity ids. The simplest way to do this is to include a collection of ids from deleted entities and reuse them.</p>
+          <pre class="syntax-highlight"><code class="language-cs"><span class="syntax-type">Stack</span>&lt;<span class="syntax-keyword">int</span>&gt; <span class="syntax-local">_recycledIds</span>;
+<span class="syntax-keyword">int</span> <span class="syntax-local">_nextId</span>;
+
+<span class="syntax-keyword">int</span> <span class="syntax-method">GetNewId</span>() =&gt; <span class="syntax-local">_recyledIds</span>.<span class="syntax-method">TryPop</span>(<span class="syntax-keyword">out int</span> <span class="syntax-local">i</span>) ? <span class="syntax-local">i</span> : <span class="syntax-local">_nextId</span>++;</code></pre>
+          <p>However, reusing entity ids directly would cause problems as the user would perceive entities as being deleted, then being "revived" as a functionally different entity with different components.</p>
+          <p>So we enhance the idea of an entity by also including a version along with the entity id. Every time the same entity id is given out, a unique version number (usually also sequential) is also handed out. The corresponding entry in the entity table then keeps track of the current entity version in use, so given an entity id and a version, one can check if the entity is alive. In Frent, all of this is abstracted within the <code>Entity</code> struct.</p>
+          <p>This pattern is similar to the generational handles/generational indices pattern.</p>
+
+          <h2>Frent specifics</h2>
+          <h3>Saving memory with recycling</h3>
+          <p>We can save some memory by using the entity table itself as our collection to store recycled entity ids.</p>
+          <p>When an entry in the entity table is unused (so its corresponding entity id has been recycled), the archetype index (the row index of the entity within the corresponding archetype) can be repurposed as a link index in a singly linked list.</p>
+          <p>This shows what the entity table would look like after deleting entities 4, 2, 3 in order:</p>
+          <p><img src="https://raw.githubusercontent.com/itsBuggingMe/itsBuggingMe/refs/heads/main/img/entity_table_1.png" alt="The entity table after recycling entities" /></p>
+
+          <h3>Tags</h3>
+          <p>A tag is like a component, but doesn't store data.</p>
+          <p>Tag types are also assigned a sequential tag id, and the highest bit of each byte in the component map is reserved as a marker indicating whether this archetype has a tag of that type.</p>
+          <p>This is also where the limit of 127 components on an entity comes from. The remaining 7 bits can address 128 indices, with index 0 being used as a tombstone value.</p>
+
+          <h3>Events</h3>
+          <p>The main goal for events was not to punish the speed and memory usage of not using events, while also not increasing the memory overhead of an entity. This would allow entities to be used for things as complex as player characters or as simple as particle effects.</p>
+          <p>To do this, event data is associated with entity ids with a custom dictionary. However, dictionary lookups are slow (~20ns), and just checking if a dictionary contains an entry would punish users who don't use events with that lookup.</p>
+          <p>To fix this, we use bit flags in entity table entries to indicate whether an entity has an event of a given kind. This way, the only extra cost is a single branch and a bit test.</p>
+
+          <h3>Sparse components</h3>
+          <p>The two popular ways to implement an ECS is with archetypes and sparse sets, each with strengths and weaknesses that complement each other.</p>
+          <table>
+            <thead>
+              <tr><th scope="col">Sparse Set</th><th scope="col">Archetypes</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>O(1) and faster Add/Remove/Get</td><td>Better cache locality</td></tr>
+              <tr><td>Simpler to implement</td><td>Faster to query entities</td></tr>
+              <tr><td>Can perform structural changes any time</td><td>SIMD-able</td></tr>
+            </tbody>
+          </table>
+          <p>Components are stored in archetypes by default, but can be optionally placed into sparse sets by implementing the <code>ISparseComponent</code> interface. User-wise, there are no visible changes that allow for seamless switching between sparse sets and archetypical storage.</p>
+          <p>For information on the sparse set data structure itself, see: <a href="https://www.geeksforgeeks.org/dsa/sparse-set/">https://www.geeksforgeeks.org/dsa/sparse-set/</a>.<br />TLDR: sparse sets can map entity ids to components, where all components of a type are stored contiguously, while maintaining O(1) add, get, and remove</p>
+          <p>We use the fact that the JIT can perform dead code elimination with <code>default(T) is ISparseComponent</code>, since monomorphization of struct generics makes the expression's value known at JIT time.</p>
+
+          <h4>Querying sparse and archetypical components</h4>
+          <p>Querying both sparse and archetypical components is relatively complex to preserve the behavior of both components being the same. In addition, a primary goal of sparse components was not to punish archetypical component only code paths.</p>
+          <p>Each sparse component also gets its own "sparse component id," which is a sequential id that indexes into the per-world sparse set array and is a bit index. Each sparse entity has a corresponding 256-bit vector. 256 bits were chosen as most computers now support ymm registers. This also limits the global number of sparse components to 256.</p>
+          <p>The arrays that store these bit vectors are lazily allocated to save memory, and queries/filters build bitsets to match and exclude components. This operation is altogether skipped if no components in a query use sparse components, and is very fast due to the x86 <code>ptest</code> instruction. The C++ intrinsic equivalent would be using testc for matching included components and testz for matching excluded components.</p>
+
+          <h3>Creating entities during updates</h3>
+          <p><a href="https://www.lohj.me/blog/Creating-Entities-at-Anytime-in-ECS">https://www.lohj.me/blog/Creating-Entities-at-Anytime-in-ECS</a></p>
+        </div>
+        <div class="comments-section" aria-label="Comments">
+          <script
+            src="https://giscus.app/client.js"
+            data-repo="itsBuggingMe/blog-comments"
+            data-repo-id="R_kgDOObXRmQ"
+            data-category="Announcements"
+            data-category-id="DIC_kwDOObXRmc4CpNIW"
+            data-mapping="title"
+            data-strict="0"
+            data-reactions-enabled="1"
+            data-emit-metadata="0"
+            data-input-position="bottom"
+            data-theme="preferred_color_scheme"
+            data-lang="en"
+            crossorigin="anonymous"
+            async>
+          </script>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
