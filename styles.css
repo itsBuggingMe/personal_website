@@ -534,9 +534,9 @@ h1 {
 
 .sticky-list {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 14rem));
-  gap: 1.25rem;
-  justify-content: start;
+  width: 100%;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  gap: clamp(1.25rem, 3vw, 2rem);
   margin-top: 2.5rem;
 }
 
