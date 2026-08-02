@@ -441,13 +441,13 @@ h1 {
 
 .sticky-input::before {
   inset: 0.35rem -0.45rem -0.45rem 0.35rem;
-  background: #f4d35e;
+  background: #00AFDF;
   transform: rotate(2deg);
 }
 
 .sticky-input::after {
   inset: 0.2rem -0.25rem -0.25rem 0.2rem;
-  background: #f4d35e;
+  background: #EF67A5;
   transform: rotate(-1.2deg);
 }
 
@@ -458,7 +458,7 @@ h1 {
   height: 100%;
   padding: 1.25rem;
   border: 0;
-  background: #f4d35e;
+  background: #FFD71B;
   box-shadow: 0.25rem 0.35rem 0.8rem rgb(0 0 0 / 26%);
   color: #3f351d;
   font-family: "Caveat", cursive;
@@ -546,21 +546,12 @@ h1 {
   align-items: center;
   aspect-ratio: 1;
   padding: 1.15rem 1.25rem 1rem;
-  background: #f4d35e;
+  background: var(--sticky-color);
   box-shadow: 0.25rem 0.35rem 0.8rem rgb(0 0 0 / 26%);
   color: #3f351d;
   font-family: "Caveat", cursive;
   text-align: center;
-}
-
-.sticky-note:nth-child(3n + 2) {
-  background: #f7dc76;
-  transform: rotate(1deg);
-}
-
-.sticky-note:nth-child(3n) {
-  background: #efd05a;
-  transform: rotate(-0.7deg);
+  transform: rotate(var(--sticky-rotation));
 }
 
 .sticky-note-content {

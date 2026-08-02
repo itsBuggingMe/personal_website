@@ -8,6 +8,7 @@ const stickyPlaceholders = [
   "Type something...",
   "Please don't spam...",
 ];
+const stickyColors = ["#E5E54A", "#FBAD4B", "#EF67A5", "#FFD71B",  "#00AFDF", "#E5E54A", "#FFD71B"];
 
 const stickyForm = document.querySelector("#sticky-form");
 const stickyContent = document.querySelector("#sticky-content");
@@ -26,6 +27,17 @@ function updateStickyCount() {
 function setStickyStatus(message, isError = false) {
   stickyStatus.textContent = message;
   stickyStatus.dataset.error = isError ? "true" : "false";
+}
+
+function hashSticky(value) {
+  let hash = 2166136261;
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return (hash >>> 0) / 4294967296;
 }
 
 function formatStickyTime(value) {
@@ -61,7 +73,18 @@ function renderStickys(stickys) {
 
   for (const { content: text = "", time } of notes) {
     const note = document.createElement("article");
+    const stickySeed = `${time ?? ""}\u0000${text}`;
+    const colorRandom = hashSticky(`${stickySeed}\u0000color`);
+    const rotationRandom = hashSticky(`${stickySeed}\u0000rotation`);
     note.className = "sticky-note";
+    note.style.setProperty(
+      "--sticky-color",
+      stickyColors[Math.floor(colorRandom * stickyColors.length)],
+    );
+    note.style.setProperty(
+      "--sticky-rotation",
+      `${rotationRandom * 2 - 1}deg`,
+    );
 
     const content = document.createElement("p");
     content.className = "sticky-note-content";
