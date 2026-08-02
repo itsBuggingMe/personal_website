@@ -83,7 +83,7 @@ function renderStickys(stickys) {
     );
     note.style.setProperty(
       "--sticky-rotation",
-      `${rotationRandom * 2 - 1}deg`,
+      `${rotationRandom * 4 - 2}deg`,
     );
 
     const content = document.createElement("p");
