@@ -60,7 +60,7 @@
 <br/><br/>
 <h3>Performance</h3>
 <br/>
-<p>&nbsp;&nbsp;&nbsp;&nbsp;Deferring entity creation in this manner is much faster than a command buffer. If many entities are created in same archetype, they can copied back in bulk instead of individually looked up again and again in tables. But the largest Performance benefit is what it allows us to do. Since we covered the case where there is not enough space in an archetype, the hot path becomes directly adding components to the regular archetype. In other words, there will be no Performance difference when creating an entity during a system execution!</p>
+<p>&nbsp;&nbsp;&nbsp;&nbsp;Deferring entity creation in this manner is much faster than a command buffer. If many entities are created in same archetype, they can copied back in bulk instead of individually looked up again and again in tables. But the largest performance benefit is what it allows us to do. Since we covered the case where there is not enough space in an archetype, the hot path becomes directly adding components to the regular archetype. In other words, there will be no performance difference when creating an entity during a system execution!</p>
 <br/><br/>
 <h3>Thoughts</h3>
 <br/>
