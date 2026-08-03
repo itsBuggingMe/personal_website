@@ -61,6 +61,26 @@ function renderStickyState(message, isError = false) {
   stickyList.replaceChildren(stickyForm, state);
 }
 
+function fitStickyContent(content) {
+  const minimumFontSize = 14;
+  content.style.removeProperty("font-size");
+
+  let fontSize = Number.parseFloat(getComputedStyle(content).fontSize);
+
+  while (
+    (content.scrollHeight > content.clientHeight ||
+      content.scrollWidth > content.clientWidth) &&
+    fontSize > minimumFontSize
+  ) {
+    fontSize = Math.max(minimumFontSize, fontSize - 1);
+    content.style.fontSize = `${fontSize}px`;
+  }
+}
+
+function fitStickyContents() {
+  document.querySelectorAll(".sticky-note-content").forEach(fitStickyContent);
+}
+
 function renderStickys(stickys) {
   const notes = Array.isArray(stickys) ? stickys : [];
 
@@ -103,6 +123,8 @@ function renderStickys(stickys) {
 
     stickyList.append(note);
   }
+
+  fitStickyContents();
 }
 
 async function loadStickys() {
@@ -161,6 +183,14 @@ stickyForm.addEventListener("submit", async (event) => {
 });
 
 updateStickyCount();
+
+let stickyResizeFrame;
+window.addEventListener("resize", () => {
+  cancelAnimationFrame(stickyResizeFrame);
+  stickyResizeFrame = requestAnimationFrame(fitStickyContents);
+});
+
+document.fonts?.ready.then(fitStickyContents);
 
 loadStickys().catch((error) => {
   renderStickyState("Stickys are taking a nap right now.", true);
