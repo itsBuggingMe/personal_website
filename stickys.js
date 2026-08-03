@@ -54,6 +54,18 @@ function formatStickyTime(value) {
   });
 }
 
+function updateHeartButton(button, likes, isHearted = false) {
+  const count = likes;
+  const icon = button.querySelector(".sticky-heart-icon");
+  const countLabel = button.querySelector(".sticky-heart-count");
+
+  icon.textContent = isHearted ? "♥" : "♡";
+  countLabel.textContent = count;
+  button.classList.toggle("is-hearted", isHearted);
+  button.setAttribute("aria-label", "Heart this sticky!");
+  button.title = `Heart this sticky!`;
+}
+
 function renderStickyState(message, isError = false) {
   const state = document.createElement("p");
   state.className = `sticky-state${isError ? " sticky-state-error" : ""}`;
@@ -71,7 +83,7 @@ function renderStickys(stickys) {
 
   stickyList.replaceChildren(stickyForm);
 
-  for (const { content: text = "", time } of notes) {
+  for (const { content: text = "", time, likes = 0 } of notes) {
     const note = document.createElement("article");
     const stickySeed = `${time ?? ""}\u0000${text}`;
     const colorRandom = hashSticky(`${stickySeed}\u0000color`);
@@ -94,15 +106,73 @@ function renderStickys(stickys) {
     const formattedTime = formatStickyTime(time);
 
     if (formattedTime) {
+      const footer = document.createElement("footer");
+      footer.className = "sticky-note-footer";
+
       const timestamp = document.createElement("time");
       timestamp.className = "sticky-note-time";
       timestamp.dateTime = time;
       timestamp.textContent = formattedTime;
-      note.append(timestamp);
+      footer.append(timestamp);
+
+      const heart = document.createElement("button");
+      heart.className = "sticky-heart";
+      heart.type = "button";
+
+      const heartIcon = document.createElement("span");
+      heartIcon.className = "sticky-heart-icon";
+      heartIcon.setAttribute("aria-hidden", "true");
+
+      const heartCount = document.createElement("span");
+      heartCount.className = "sticky-heart-count";
+
+      heart.append(heartIcon, heartCount);
+      updateHeartButton(heart, likes);
+
+      heart.addEventListener("click", async () => {
+        heart.disabled = true;
+        setStickyStatus("Sending heart...");
+
+        try {
+          const updated = await heartSticky(time);
+          updateHeartButton(heart, updated.likes, true);
+          setStickyStatus("Sticky hearted.");
+        } catch (error) {
+          setStickyStatus(error.message, true);
+        } finally {
+          heart.disabled = false;
+        }
+      });
+
+      footer.append(heart);
+      note.append(footer);
     }
 
     stickyList.append(note);
   }
+}
+
+async function heartSticky(time) {
+  const response = await fetch(`${stickyApiUrl}/stickys/heart`, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ time }),
+  });
+
+  const result = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    throw new Error(result?.error ?? `Unable to heart sticky (${response.status}).`);
+  }
+
+  if (!result || !Number.isFinite(Number(result.likes))) {
+    throw new Error("The sticky was hearted, but its new count was not returned.");
+  }
+
+  return result;
 }
 
 async function loadStickys() {

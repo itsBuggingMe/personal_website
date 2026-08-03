@@ -568,11 +568,69 @@ h1 {
   line-height: 1.1;
 }
 
-.sticky-note-time {
+.sticky-note-footer {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
   margin-top: auto;
   padding-top: 1rem;
+}
+
+.sticky-note-time {
   font-size: 1rem;
   opacity: 0.65;
+}
+
+.sticky-heart {
+  display: inline-flex;
+  min-width: 2.5rem;
+  min-height: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.45rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #6b5729;
+  font: inherit;
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 140ms ease, transform 140ms ease;
+}
+
+.sticky-heart:hover,
+.sticky-heart:focus-visible,
+.sticky-heart.is-hearted {
+  color: #b73750;
+}
+
+.sticky-heart:hover {
+  transform: scale(1.08);
+}
+
+.sticky-heart:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 1px;
+}
+
+.sticky-heart:disabled {
+  cursor: wait;
+  opacity: 0.55;
+  transform: none;
+}
+
+.sticky-heart-icon {
+  font-family: Arial, sans-serif;
+  font-size: 1.25rem;
+}
+
+.sticky-heart-count {
+  min-width: 1ch;
+  font-variant-numeric: tabular-nums;
 }
 
 .sticky-state {
