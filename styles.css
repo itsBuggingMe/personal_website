@@ -603,8 +603,7 @@ h1 {
 }
 
 .sticky-heart:hover,
-.sticky-heart:focus-visible,
-.sticky-heart.is-hearted {
+.sticky-heart:focus-visible {
   color: #b73750;
 }
 
