@@ -135,6 +135,7 @@ a {
   aspect-ratio: 16 / 10;
   background: var(--background);
   object-fit: cover;
+  object-position: center;
 }
 
 .project-card-body {
